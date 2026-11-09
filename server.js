@@ -8,40 +8,32 @@ app.use(cors());
 
 // Your eBay Partner Network Campaign ID 
 const CAMP_ID = '1234567890'; 
+// IMPORTANT: Put your ScraperAPI key here
+const SCRAPER_API_KEY = 'YOUR_SCRAPER_API_KEY_HERE'; 
 
 app.get('/api/cards', async (req, res) => {
   try {
-    // THE RSS-TO-JSON BYPASS: eBay blocked Render's IP directly, so we use a legitimate 
-    // public RSS aggregator (rss2json.com) to fetch the feed on our behalf. 
-    // eBay allows feed readers, so this sails right through!
-    const ebayRssUrl = 'https://www.ebay.com/sch/i.html?_nkw=vintage+sports+card+lot&_rss=1';
-    const targetUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(ebayRssUrl)}`;
+    const ebaySearchUrl = 'https://www.ebay.com/sch/i.html?_nkw=vintage+sports+card+lot';
+    
+    // We are using premium=true to force ScraperAPI to use high-quality residential proxies.
+    // This perfectly mimics a real human and bypasses DataDome completely.
+    const targetUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(ebaySearchUrl)}&premium=true`;
     
     const { data } = await axios.get(targetUrl);
-
-    if (data.status !== 'ok') {
-      throw new Error('Failed to fetch from RSS2JSON');
-    }
-
+    const $ = cheerio.load(data);
     const cards = [];
 
-    // Loop through each item returned by the RSS API
-    data.items.forEach((item, index) => {
-      const title = item.title;
-      const originalLink = item.link;
-      const descriptionHtml = item.description;
-      
-      // The description contains HTML with the image and price. We parse it:
-      const $desc = cheerio.load(descriptionHtml);
-      const image = $desc('img').attr('src');
-      
-      // Extract the price using a regular expression (e.g., "$15.99")
-      const priceMatch = descriptionHtml.match(/\$[0-9,]+\.[0-9]{2}/);
-      const price = priceMatch ? priceMatch[0] : 'Check Price';
+    // Loop through the actual eBay HTML listings to get high-res images
+    $('.s-item').each((index, element) => {
+      if (index === 0) return; // Skip eBay's hidden meta-listing
 
-      // Only add to array if we successfully found a title, image, and link
-      if (title && image && originalLink) {
-        const cleanUrl = originalLink.split('?')[0]; 
+      const title = $(element).find('.s-item__title').text();
+      const price = $(element).find('.s-item__price').text();
+      const image = $(element).find('.s-item__image-img').attr('src');
+      const originalLink = $(element).find('.s-item__link').attr('href');
+
+      if (title && image && originalLink && price) {
+        const cleanUrl = originalLink.split('?')[0];
         const affiliateUrl = `${cleanUrl}?mkevt=1&mkcid=1&mkrid=711-53200-19255-0&campid=${CAMP_ID}&toolid=10001`;
 
         cards.push({
@@ -56,8 +48,8 @@ app.get('/api/cards', async (req, res) => {
 
     res.json(cards);
   } catch (error) {
-    console.error("Error fetching eBay RSS:", error.message);
-    res.status(500).json({ error: 'Failed to fetch cards' });
+    console.error("ScraperAPI Error Details:", error.response ? error.response.data : error.message);
+    res.status(500).json({ error: 'Failed to fetch cards via ScraperAPI' });
   }
 });
 

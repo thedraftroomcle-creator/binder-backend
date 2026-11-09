@@ -20,7 +20,7 @@ app.get('/api/cards', async (req, res) => {
       params: {
         api_key: SCRAPER_API_KEY,
         url: targetUrl,
-        country_code: 'us' // Force a US-based proxy, faster and more reliable than 'premium' for free tiers
+        ultra_premium: 'true' // Bypasses eBay's DataDome security completely
       }
     });
 

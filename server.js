@@ -11,26 +11,25 @@ const CAMP_ID = '1234567890';
 
 app.get('/api/cards', async (req, res) => {
   try {
-    // THE RSS BYPASS: Appending &_rss=1 tells eBay to send XML meant for automated feed readers.
-    // DataDome bot protection completely ignores RSS feeds!
-    const targetUrl = 'https://www.ebay.com/sch/i.html?_nkw=vintage+sports+card+lot&_rss=1';
+    // THE RSS-TO-JSON BYPASS: eBay blocked Render's IP directly, so we use a legitimate 
+    // public RSS aggregator (rss2json.com) to fetch the feed on our behalf. 
+    // eBay allows feed readers, so this sails right through!
+    const ebayRssUrl = 'https://www.ebay.com/sch/i.html?_nkw=vintage+sports+card+lot&_rss=1';
+    const targetUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(ebayRssUrl)}`;
     
-    // We hit eBay directly from Render - no ScraperAPI needed!
-    const { data } = await axios.get(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-      }
-    });
+    const { data } = await axios.get(targetUrl);
 
-    // Parse the XML feed
-    const $ = cheerio.load(data, { xmlMode: true });
+    if (data.status !== 'ok') {
+      throw new Error('Failed to fetch from RSS2JSON');
+    }
+
     const cards = [];
 
-    // Loop through each item in the RSS feed
-    $('item').each((index, element) => {
-      const title = $(element).find('title').text();
-      const originalLink = $(element).find('link').text();
-      const descriptionHtml = $(element).find('description').text();
+    // Loop through each item returned by the RSS API
+    data.items.forEach((item, index) => {
+      const title = item.title;
+      const originalLink = item.link;
+      const descriptionHtml = item.description;
       
       // The description contains HTML with the image and price. We parse it:
       const $desc = cheerio.load(descriptionHtml);
@@ -40,6 +39,7 @@ app.get('/api/cards', async (req, res) => {
       const priceMatch = descriptionHtml.match(/\$[0-9,]+\.[0-9]{2}/);
       const price = priceMatch ? priceMatch[0] : 'Check Price';
 
+      // Only add to array if we successfully found a title, image, and link
       if (title && image && originalLink) {
         const cleanUrl = originalLink.split('?')[0]; 
         const affiliateUrl = `${cleanUrl}?mkevt=1&mkcid=1&mkrid=711-53200-19255-0&campid=${CAMP_ID}&toolid=10001`;

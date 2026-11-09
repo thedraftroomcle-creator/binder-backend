@@ -20,7 +20,7 @@ app.get('/api/cards', async (req, res) => {
       params: {
         api_key: SCRAPER_API_KEY,
         url: targetUrl,
-        premium: 'true' // Guarantees a high-quality residential IP
+        country_code: 'us' // Force a US-based proxy, faster and more reliable than 'premium' for free tiers
       }
     });
 
@@ -51,7 +51,11 @@ app.get('/api/cards', async (req, res) => {
 
     res.json(cards);
   } catch (error) {
+    // Enhanced error logging to see exactly what ScraperAPI is complaining about
     console.error("Error scraping eBay:", error.message);
+    if (error.response && error.response.data) {
+      console.error("ScraperAPI Error Details:", error.response.data);
+    }
     res.status(500).json({ error: 'Failed to fetch cards' });
   }
 });

@@ -20,7 +20,7 @@ app.get('/api/cards', async (req, res) => {
       params: {
         api_key: SCRAPER_API_KEY,
         url: targetUrl,
-        render: 'true' // Tells the proxy to act exactly like a browser
+        premium: 'true' // Guarantees a high-quality residential IP
       }
     });
 

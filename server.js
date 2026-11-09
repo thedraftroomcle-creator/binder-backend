@@ -9,7 +9,7 @@ app.use(cors());
 // Your eBay Partner Network Campaign ID 
 const CAMP_ID = '1234567890'; 
 // IMPORTANT: Put your ScraperAPI key here
-const SCRAPER_API_KEY = 'YOUR_SCRAPER_API_KEY_HERE'; 
+const SCRAPER_API_KEY = '74b64b19cf1d897e9286204be09ca2e3'; 
 
 app.get('/api/cards', async (req, res) => {
   try {

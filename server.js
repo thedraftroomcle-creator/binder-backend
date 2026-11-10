@@ -13,31 +13,38 @@ const SCRAPER_API_KEY = '74b64b19cf1d897e9286204be09ca2e3';
 
 app.get('/api/cards', async (req, res) => {
   try {
-    const ebaySearchUrl = 'https://www.ebay.com/sch/i.html?_nkw=vintage+sports+card+lot';
+    // TCGPlayer Search URL (Looking for Charizard cards)
+    const tcgSearchUrl = 'https://www.tcgplayer.com/search/pokemon/product?productLineName=pokemon&q=charizard&view=grid';
     
-    // We are using premium=true to force ScraperAPI to use high-quality residential proxies.
-    // This perfectly mimics a real human and bypasses DataDome completely.
-    const targetUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(ebaySearchUrl)}&premium=true`;
+    // We MUST use render=true for TCGPlayer because their site relies on JavaScript to load the cards.
+    // premium=true ensures we use a residential IP to avoid Cloudflare blocks.
+    const targetUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(tcgSearchUrl)}&render=true&premium=true`;
     
     const { data } = await axios.get(targetUrl);
     const $ = cheerio.load(data);
     const cards = [];
 
-    // Loop through the actual eBay HTML listings to get high-res images
-    $('.s-item').each((index, element) => {
-      if (index === 0) return; // Skip eBay's hidden meta-listing
+    // Loop through the TCGPlayer search results
+    $('.search-result').each((index, element) => {
+      // TCGPlayer's specific CSS classes for their grid view
+      const title = $(element).find('.search-result__title').text().trim();
+      const priceText = $(element).find('.inventory__price-with-shipping').text().trim();
+      const image = $(element).find('.search-result__image img').attr('src');
+      const relativeLink = $(element).find('a.search-result__title').attr('href');
 
-      const title = $(element).find('.s-item__title').text();
-      const price = $(element).find('.s-item__price').text();
-      const image = $(element).find('.s-item__image-img').attr('src');
-      const originalLink = $(element).find('.s-item__link').attr('href');
+      if (title && image && relativeLink) {
+        // TCGPlayer uses relative links, so we must add the base URL
+        const fullLink = `https://www.tcgplayer.com${relativeLink}`;
+        
+        // TCGPlayer affiliate tags work differently, but we'll set up the clean URL for now
+        // You can inject your TCGPlayer affiliate ID here later
+        const affiliateUrl = fullLink;
 
-      if (title && image && originalLink && price) {
-        const cleanUrl = originalLink.split('?')[0];
-        const affiliateUrl = `${cleanUrl}?mkevt=1&mkcid=1&mkrid=711-53200-19255-0&campid=${CAMP_ID}&toolid=10001`;
+        // Clean up the price text if it has extra spacing
+        const price = priceText ? priceText.split(' ')[0] : 'Price varies';
 
         cards.push({
-          id: index.toString(),
+          id: `tcg-${index}`,
           title,
           price,
           image,
@@ -45,6 +52,10 @@ app.get('/api/cards', async (req, res) => {
         });
       }
     });
+
+    if (cards.length === 0) {
+      console.log("No cards found. TCGPlayer might be blocking the proxy, or the page took too long to render.");
+    }
 
     res.json(cards);
   } catch (error) {
